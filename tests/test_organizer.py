@@ -70,8 +70,8 @@ class ClassificationTests(unittest.TestCase):
             self.assertEqual(organizer.epub_metadata(path), ["A Book", "Travel"])
 
     def test_destination_layout(self):
-        self.assertEqual(organizer.desired_location(CONFIG, "epub", "fiction"), "/books/epub/fiction")
-        self.assertEqual(organizer.desired_location(CONFIG, "pdf", "fiction"), "/books/pdf")
+        self.assertEqual(organizer.desired_location(CONFIG, "epub", "fiction"), "/downloads/epub/fiction")
+        self.assertEqual(organizer.desired_location(CONFIG, "pdf", "fiction"), "/downloads/pdf")
 
     def test_apply_plan_sets_category_verify_tag_and_location(self):
         class FakeClient:
@@ -80,7 +80,7 @@ class ClassificationTests(unittest.TestCase):
 
             def get_json(self, endpoint, data=None):
                 if endpoint.endswith("categories"):
-                    return {"epub": {"name": "epub", "savePath": "/books/epub"}}
+                    return {"epub": {"name": "epub", "savePath": "/downloads/epub"}}
                 if endpoint.endswith("tags"):
                     return []
                 raise AssertionError(endpoint)
@@ -89,11 +89,11 @@ class ClassificationTests(unittest.TestCase):
                 self.posts.append((endpoint, data))
 
         client = FakeClient()
-        organizer.apply_plan(client, "abc123", "epub", "fiction", "/books/epub/fiction", CONFIG)
+        organizer.apply_plan(client, "abc123", "epub", "fiction", "/downloads/epub/fiction", CONFIG)
         calls = {endpoint: data for endpoint, data in client.posts}
         self.assertEqual(calls["/api/v2/torrents/setCategory"]["category"], "epub")
         self.assertEqual(calls["/api/v2/torrents/addTags"]["tags"], "fiction,VERIFY")
-        self.assertEqual(calls["/api/v2/torrents/setLocation"]["location"], "/books/epub/fiction")
+        self.assertEqual(calls["/api/v2/torrents/setLocation"]["location"], "/downloads/epub/fiction")
 
 
 if __name__ == "__main__":

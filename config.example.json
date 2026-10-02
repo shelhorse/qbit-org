@@ -1,11 +1,11 @@
 {
   "qbittorrent": {
-    "url": "http://127.0.0.1:8080",
+    "url": "http://127.0.0.1:8090",
     "username": "admin",
     "password": "CHANGE_ME_OR_USE_QBT_PASSWORD",
     "timeout_seconds": 30
   },
-  "root": "/books",
+  "root": "/downloads",
   "epub_category": "epub",
   "multiformat_category": "multi-format",
   "unknown_format_category": null,
