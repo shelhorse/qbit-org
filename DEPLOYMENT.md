@@ -60,16 +60,16 @@ The organizer can request a host-side rclone mirror after it successfully moves 
 
 1. Copy `sync.example.json` to `/data/docker/qbittorrent/organizer/sync.json` and adjust the jobs if necessary.
 2. Run `sync_books.py --check-config`, followed by `sync_books.py --dry-run`. Review deletions carefully.
-3. Copy `examples/qbit-books-sync.service` and `examples/qbit-books-sync.path` to `/etc/systemd/system/`.
+3. Copy `examples/qbit-books-sync@.service` and `examples/qbit-books-sync@.path` to `/etc/systemd/system/`.
 4. Enable `sync_trigger` in the private organizer configuration.
 5. Reload systemd and enable the path watcher:
 
    ```sh
    sudo systemctl daemon-reload
-   sudo systemctl enable --now qbit-books-sync.path
+   sudo systemctl enable --now qbit-books-sync@fiction.path qbit-books-sync@nonfiction.path
    ```
 
-The example watches `/data/docker/qbittorrent/config/qbit-books-sync.trigger` and runs the mirror as host user `mo`. Adjust those values when deploying under a different host layout or account. View results with `journalctl -u qbit-books-sync.service`.
+The example watches separate fiction and nonfiction trigger files and runs the matching mirror as host user `mo`. Adjust those values when deploying under a different host layout or account. View results with `journalctl -u 'qbit-books-sync@*.service'`.
 
 ## Upgrade
 

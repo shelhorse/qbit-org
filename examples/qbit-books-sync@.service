@@ -1,0 +1,13 @@
+[Unit]
+Description=Mirror organized %i EPUBs with rclone
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=mo
+Group=mo
+ExecStart=/usr/bin/python3 /data/docker/qbittorrent/organizer/sync_books.py --config /data/docker/qbittorrent/organizer/sync.json --job %i
+TimeoutStartSec=2h
+Nice=10
+IOSchedulingClass=idle

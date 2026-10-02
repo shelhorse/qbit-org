@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented here. The project follows semantic versioning.
 
+## 0.3.1 — 2026-10-02
+
+- Give fiction and nonfiction independent trigger files and systemd instances so only the corresponding mirror runs.
+
 ## 0.3.0 — 2026-10-02
 
 - Add an optional post-organization trigger restricted to configured EPUB subject tags.

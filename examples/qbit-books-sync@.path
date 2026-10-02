@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch for organized %i EPUBs
+
+[Path]
+PathChanged=/data/docker/qbittorrent/config/qbit-books-sync-%i.trigger
+Unit=qbit-books-sync@%i.service
+
+[Install]
+WantedBy=multi-user.target

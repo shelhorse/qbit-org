@@ -25,6 +25,12 @@ class SyncBooksTests(unittest.TestCase):
         config = json.loads((ROOT / "sync.example.json").read_text(encoding="utf-8"))
         self.assertEqual([job["name"] for job in config["jobs"]], ["fiction", "nonfiction"])
 
+    def test_select_jobs_returns_only_requested_mirror(self):
+        config = {"jobs": [{"name": "fiction"}, {"name": "nonfiction"}]}
+        self.assertEqual(sync_books.select_jobs(config, "fiction"), [{"name": "fiction"}])
+        with self.assertRaises(sync_books.SyncError):
+            sync_books.select_jobs(config, "other")
+
     def test_config_rejects_missing_source(self):
         with tempfile.TemporaryDirectory() as directory:
             config = {

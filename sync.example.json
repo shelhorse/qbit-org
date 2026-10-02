@@ -1,6 +1,6 @@
 {
   "rclone": "/usr/bin/rclone",
-  "lock_file": "/data/docker/qbittorrent/config/qbit-books-sync.lock",
+  "lock_file": "/data/docker/qbittorrent/config/qbit-books-sync-{job}.lock",
   "max_delete": 20,
   "log_level": "INFO",
   "jobs": [

@@ -92,8 +92,7 @@ class ClassificationTests(unittest.TestCase):
             config = copy.deepcopy(CONFIG)
             config["sync_trigger"] = {
                 "enabled": True,
-                "file": str(trigger),
-                "tags": ["fiction", "nonfiction"],
+                "files": {"fiction": str(trigger)},
             }
 
             organizer.signal_sync(config, "epub", "fiction")

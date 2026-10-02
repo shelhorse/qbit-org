@@ -23,7 +23,7 @@ from typing import Any
 from xml.etree import ElementTree
 
 LOG = logging.getLogger("qbt-book-organizer")
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 
 
 class OrganizerError(RuntimeError):
@@ -477,9 +477,12 @@ def signal_sync(config: dict[str, Any], category: str, tag: str) -> None:
     trigger = config.get("sync_trigger", {})
     if not trigger.get("enabled", False):
         return
-    if category != config.get("epub_category", "epub") or tag not in trigger.get("tags", []):
+    if category != config.get("epub_category", "epub"):
         return
-    trigger_file = Path(str(trigger.get("file", "")))
+    trigger_path = trigger.get("files", {}).get(tag)
+    if not trigger_path:
+        return
+    trigger_file = Path(str(trigger_path))
     if not trigger_file.is_absolute():
         raise OrganizerError("sync_trigger.file must be an absolute path")
     try:

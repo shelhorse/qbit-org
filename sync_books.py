@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 LOG = logging.getLogger("qbt-book-sync")
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 
 
 class SyncError(RuntimeError):
@@ -105,10 +105,21 @@ def build_command(config: dict[str, Any], job: dict[str, Any], dry_run: bool = F
     return command
 
 
-def run_jobs(config: dict[str, Any], dry_run: bool = False) -> None:
-    lock_file = Path(str(config["lock_file"]))
+def select_jobs(config: dict[str, Any], job_name: str | None = None) -> list[dict[str, Any]]:
+    jobs = list(config["jobs"])
+    if job_name is None:
+        return jobs
+    selected = [job for job in jobs if job["name"] == job_name]
+    if not selected:
+        raise SyncError(f"Unknown sync job: {job_name!r}")
+    return selected
+
+
+def run_jobs(config: dict[str, Any], dry_run: bool = False, job_name: str | None = None) -> None:
+    lock_template = str(config["lock_file"])
+    lock_file = Path(lock_template.format(job=job_name or "all"))
     with sync_lock(lock_file):
-        for job in config["jobs"]:
+        for job in select_jobs(config, job_name):
             LOG.info(
                 "Starting mirror: name=%s source=%s destination=%s dry_run=%s",
                 job["name"],
@@ -127,6 +138,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--config", type=Path, default=Path(__file__).with_name("sync.json"))
     parser.add_argument("--check-config", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--job", help="Run only the named mirror job")
     parser.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
     return parser.parse_args(argv)
 
@@ -140,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.check_config:
             LOG.info("Sync configuration is valid")
             return 0
-        run_jobs(config, dry_run=args.dry_run)
+        run_jobs(config, dry_run=args.dry_run, job_name=args.job)
         return 0
     except (SyncError, ValueError, subprocess.SubprocessError) as exc:
         LOG.error("%s", exc)

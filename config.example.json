@@ -14,8 +14,10 @@
   "verification_interval_seconds": 1,
   "sync_trigger": {
     "enabled": false,
-    "file": "/config/qbit-books-sync.trigger",
-    "tags": ["fiction", "nonfiction"]
+    "files": {
+      "fiction": "/config/qbit-books-sync-fiction.trigger",
+      "nonfiction": "/config/qbit-books-sync-nonfiction.trigger"
+    }
   },
   "epub_category": "epub",
   "multiformat_category": "multi-format",

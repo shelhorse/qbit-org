@@ -197,7 +197,7 @@ Every mutation acquires the operating-system lock configured by `lock_file`. Thi
 
 ## Event-driven Google Drive mirrors
 
-Cloud mirroring is deliberately separate from the completion hook so a slow or unavailable remote cannot block qBittorrent. After a successfully verified EPUB move, the organizer can update a host-visible trigger file for selected subject tags. The supplied systemd path unit watches that file and runs `sync_books.py` on the Docker host.
+Cloud mirroring is deliberately separate from the completion hook so a slow or unavailable remote cannot block qBittorrent. After a successfully verified EPUB move, the organizer updates the trigger file for that subject. Independent systemd path instances run only the corresponding `sync_books.py` job on the Docker host.
 
 The example configuration mirrors only `epub/fiction` and `epub/nonfiction`. No other EPUB directory is passed to rclone. Copy `sync.example.json` to `sync.json`, validate it, and inspect a dry run before enabling the path unit:
 
