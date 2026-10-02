@@ -86,6 +86,25 @@ class ClassificationTests(unittest.TestCase):
         self.assertEqual(organizer.desired_location(CONFIG, "epub", "fiction"), "/downloads/epub/fiction")
         self.assertEqual(organizer.desired_location(CONFIG, "pdf", "fiction"), "/downloads/pdf")
 
+    def test_sync_trigger_is_limited_to_configured_epub_tags(self):
+        with tempfile.TemporaryDirectory() as directory:
+            trigger = Path(directory) / "sync.trigger"
+            config = copy.deepcopy(CONFIG)
+            config["sync_trigger"] = {
+                "enabled": True,
+                "file": str(trigger),
+                "tags": ["fiction", "nonfiction"],
+            }
+
+            organizer.signal_sync(config, "epub", "fiction")
+            self.assertTrue(trigger.exists())
+
+            trigger.unlink()
+            organizer.signal_sync(config, "epub", "cooking")
+            self.assertFalse(trigger.exists())
+            organizer.signal_sync(config, "pdf", "fiction")
+            self.assertFalse(trigger.exists())
+
     def test_apply_plan_sets_category_verify_tag_and_location(self):
         class FakeClient:
             def __init__(self):

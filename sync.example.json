@@ -1,0 +1,18 @@
+{
+  "rclone": "/usr/bin/rclone",
+  "lock_file": "/data/docker/qbittorrent/config/qbit-books-sync.lock",
+  "max_delete": 20,
+  "log_level": "INFO",
+  "jobs": [
+    {
+      "name": "fiction",
+      "source": "/data/docker/qbittorrent/downloads/epub/fiction",
+      "destination": "gdrive:@ DriveSync/epub mirror/fiction"
+    },
+    {
+      "name": "nonfiction",
+      "source": "/data/docker/qbittorrent/downloads/epub/nonfiction",
+      "destination": "gdrive:@ DriveSync/epub mirror/nonfiction"
+    }
+  ]
+}

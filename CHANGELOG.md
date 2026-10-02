@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented here. The project follows semantic versioning.
 
+## 0.3.0 — 2026-10-02
+
+- Add an optional post-organization trigger restricted to configured EPUB subject tags.
+- Add a config-driven host-side rclone mirror command with dry-run, validation, locking, and deletion limits.
+- Add systemd path/service examples for event-driven fiction and nonfiction mirrors.
+
 ## 0.2.2 — 2026-10-02
 
 - Accept qBittorrent 5.2's successful empty authentication response when localhost authentication bypass is enabled.

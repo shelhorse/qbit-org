@@ -12,6 +12,11 @@
   "lock_timeout_seconds": 30,
   "verification_attempts": 10,
   "verification_interval_seconds": 1,
+  "sync_trigger": {
+    "enabled": false,
+    "file": "/config/qbit-books-sync.trigger",
+    "tags": ["fiction", "nonfiction"]
+  },
   "epub_category": "epub",
   "multiformat_category": "multi-format",
   "unknown_format_category": null,

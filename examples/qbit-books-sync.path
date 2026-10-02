@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch for organized fiction and nonfiction EPUBs
+
+[Path]
+PathChanged=/data/docker/qbittorrent/config/qbit-books-sync.trigger
+Unit=qbit-books-sync.service
+
+[Install]
+WantedBy=multi-user.target

@@ -195,6 +195,21 @@ Every mutation acquires the operating-system lock configured by `lock_file`. Thi
 
 `lock_timeout_seconds` controls how long a process waits for another organizer run. A timeout leaves the torrent in `COMPLETE`, where a later recovery scan can retry it. Dry runs never acquire the mutation lock.
 
+## Event-driven Google Drive mirrors
+
+Cloud mirroring is deliberately separate from the completion hook so a slow or unavailable remote cannot block qBittorrent. After a successfully verified EPUB move, the organizer can update a host-visible trigger file for selected subject tags. The supplied systemd path unit watches that file and runs `sync_books.py` on the Docker host.
+
+The example configuration mirrors only `epub/fiction` and `epub/nonfiction`. No other EPUB directory is passed to rclone. Copy `sync.example.json` to `sync.json`, validate it, and inspect a dry run before enabling the path unit:
+
+```sh
+python3 /data/docker/qbittorrent/organizer/sync_books.py \
+  --config /data/docker/qbittorrent/organizer/sync.json --check-config
+python3 /data/docker/qbittorrent/organizer/sync_books.py \
+  --config /data/docker/qbittorrent/organizer/sync.json --dry-run
+```
+
+The mirror uses `rclone sync`, so remote files missing locally are deleted. `max_delete` limits the number of deletions in one run. Set `sync_trigger.enabled` to `true` in the organizer configuration only after reviewing the dry run and installing the service and path units.
+
 ## Logging
 
 Console output is always available to qBittorrent's external-program log. When `log_file` is configured, the same records are appended there. Each decision includes the torrent hash, name, original path, detected formats, category, tag, and destination. Credentials are never logged.

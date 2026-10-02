@@ -23,7 +23,7 @@ from typing import Any
 from xml.etree import ElementTree
 
 LOG = logging.getLogger("qbt-book-organizer")
-VERSION = "0.2.2"
+VERSION = "0.3.0"
 
 
 class OrganizerError(RuntimeError):
@@ -473,6 +473,23 @@ def apply_plan(
     )
 
 
+def signal_sync(config: dict[str, Any], category: str, tag: str) -> None:
+    trigger = config.get("sync_trigger", {})
+    if not trigger.get("enabled", False):
+        return
+    if category != config.get("epub_category", "epub") or tag not in trigger.get("tags", []):
+        return
+    trigger_file = Path(str(trigger.get("file", "")))
+    if not trigger_file.is_absolute():
+        raise OrganizerError("sync_trigger.file must be an absolute path")
+    try:
+        trigger_file.parent.mkdir(parents=True, exist_ok=True)
+        trigger_file.touch(exist_ok=True)
+    except OSError as exc:
+        raise OrganizerError(f"Cannot update sync trigger {trigger_file}: {exc}") from exc
+    LOG.info("Requested mirror sync: tag=%s trigger=%s", tag, trigger_file)
+
+
 def path_is_within(value: str, parent: str) -> bool:
     try:
         Path(value).resolve(strict=False).relative_to(Path(parent).resolve(strict=False))
@@ -515,6 +532,7 @@ def process_torrent(
     if not dry_run:
         with organizer_lock(config):
             apply_plan(client, info_hash, category, tag, location, config)
+            signal_sync(config, category, tag)
         LOG.info("Organized successfully: hash=%s location=%s", info_hash, location)
 
 
