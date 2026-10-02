@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodically recover completed qBittorrent books left in staging
+
+[Timer]
+OnBootSec=5m
+OnUnitActiveSec=15m
+Persistent=true
+Unit=qbit-organizer-scan.service
+
+[Install]
+WantedBy=timers.target

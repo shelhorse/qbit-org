@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented here. The project follows semantic versioning.
 
+## 0.2.0 — 2026-10-02
+
+- Serialize completion hooks and recovery scans with a crash-safe operating-system file lock.
+- Add a pinned Docker Compose example.
+- Add an optional systemd recovery timer.
+- Add documented deployment, upgrade, and rollback procedures.
+
 ## 0.1.1 — 2026-10-02
 
 - Restore compatibility with Python 3.9 and 3.11 by avoiding backslashes inside f-string expressions.

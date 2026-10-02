@@ -181,6 +181,7 @@ class ClassificationTests(unittest.TestCase):
             config = copy.deepcopy(CONFIG)
             config["root"] = str(root)
             config["staging_path"] = str(staging)
+            config["lock_file"] = str(root / "organizer.lock")
             config["verification_attempts"] = 1
             client = FakeClient(str(staging))
             count, failures = organizer.scan_staging(client, config)
@@ -188,6 +189,17 @@ class ClassificationTests(unittest.TestCase):
             self.assertEqual(client.assert_filter, "completed")
             self.assertEqual(client.state["save_path"], str(root / "epub" / "fiction"))
             self.assertEqual(client.state["tags"], "fiction,VERIFY")
+
+    def test_organizer_lock_times_out_when_already_held(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = {
+                "lock_file": str(Path(directory) / "organizer.lock"),
+                "lock_timeout_seconds": 0,
+            }
+            with organizer.organizer_lock(config):
+                with self.assertRaises(organizer.OrganizerError):
+                    with organizer.organizer_lock(config):
+                        self.fail("second lock acquisition unexpectedly succeeded")
 
 
 if __name__ == "__main__":

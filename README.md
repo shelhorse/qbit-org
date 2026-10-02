@@ -58,6 +58,8 @@ py "C:\path\to\qbt-book-organizer\organizer.py" --config "C:\path\to\qbt-book-or
 
 The official `ghcr.io/qbittorrent/docker-qbittorrent-nox` image already includes Python 3. Mount the organizer read-only alongside the existing qBittorrent volumes:
 
+The same configuration is available as [docker-compose.example.yml](docker-compose.example.yml). See [DEPLOYMENT.md](DEPLOYMENT.md) for initial deployment, a recovery timer, upgrades, and rollback.
+
 ```yaml
 services:
   qbittorrent:
@@ -108,7 +110,9 @@ Copy `organizer.py` and a private `config.json` into `/data/docker/qbittorrent/o
   },
   "root": "/downloads",
   "staging_path": "/downloads/COMPLETE",
-  "log_file": "/config/qbit-organizer.log"
+  "log_file": "/config/qbit-organizer.log",
+  "lock_file": "/config/qbit-organizer.lock",
+  "lock_timeout_seconds": 30
 }
 ```
 
@@ -184,6 +188,12 @@ docker exec qbittorrent python3 /organizer/organizer.py \
 The recovery command is safe to schedule from the Docker host with cron or a systemd timer. It considers only completed torrents whose save or content path is inside `staging_path`. A failure processing one torrent does not prevent the remaining candidates from being attempted.
 
 Before moving a torrent, the organizer creates the destination directory. It then verifies that qBittorrent reports the requested category, all requested tags, and the final save path. The retry count and interval are controlled by `verification_attempts` and `verification_interval_seconds`.
+
+## Concurrent runs
+
+Every mutation acquires the operating-system lock configured by `lock_file`. This serializes simultaneous completion hooks and prevents a scheduled recovery scan from racing a hook. The operating system releases the lock automatically if a process exits or crashes; the presence of the lock file itself does not mean the organizer is stuck.
+
+`lock_timeout_seconds` controls how long a process waits for another organizer run. A timeout leaves the torrent in `COMPLETE`, where a later recovery scan can retry it. Dry runs never acquire the mutation lock.
 
 ## Logging
 

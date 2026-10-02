@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import http.cookiejar
 import json
 import logging
@@ -18,10 +19,11 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 from xml.etree import ElementTree
+from contextlib import contextmanager
 
 
 LOG = logging.getLogger("qbt-book-organizer")
-VERSION = "0.1.1"
+VERSION = "0.2.0"
 
 
 class OrganizerError(RuntimeError):
@@ -93,6 +95,11 @@ def validate_config(config: dict[str, Any], check_paths: bool = False) -> None:
         raise OrganizerError("verification_attempts must be positive")
     if float(config.get("verification_interval_seconds", 1)) < 0:
         raise OrganizerError("verification_interval_seconds must not be negative")
+    if float(config.get("lock_timeout_seconds", 30)) < 0:
+        raise OrganizerError("lock_timeout_seconds must not be negative")
+    lock_file = Path(str(config.get("lock_file", "/config/qbit-organizer.lock")))
+    if not lock_file.is_absolute():
+        raise OrganizerError("lock_file must be an absolute path")
 
     staging = Path(str(config.get("staging_path", root / "COMPLETE")))
     try:
@@ -138,6 +145,67 @@ def read_password(config: dict[str, Any]) -> str:
         except OSError as exc:
             raise OrganizerError(f"Cannot read qBittorrent password file {password_file}: {exc}") from exc
     return str(qbt.get("password", ""))
+
+
+def try_file_lock(handle: Any) -> None:
+    if os.name == "nt":
+        import msvcrt
+
+        handle.seek(0)
+        if not handle.read(1):
+            handle.seek(0)
+            handle.write(b"\0")
+            handle.flush()
+        handle.seek(0)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+def release_file_lock(handle: Any) -> None:
+    if os.name == "nt":
+        import msvcrt
+
+        handle.seek(0)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+@contextmanager
+def organizer_lock(config: dict[str, Any]) -> Iterable[None]:
+    lock_path = Path(str(config.get("lock_file", "/config/qbit-organizer.lock")))
+    timeout = float(config.get("lock_timeout_seconds", 30))
+    try:
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        handle = lock_path.open("a+b")
+    except OSError as exc:
+        raise OrganizerError(f"Cannot open lock file {lock_path}: {exc}") from exc
+
+    deadline = time.monotonic() + timeout
+    try:
+        while True:
+            try:
+                try_file_lock(handle)
+                break
+            except (BlockingIOError, OSError) as exc:
+                if isinstance(exc, OSError) and exc.errno not in {None, errno.EACCES, errno.EAGAIN}:
+                    raise OrganizerError(f"Cannot lock {lock_path}: {exc}") from exc
+                if time.monotonic() >= deadline:
+                    raise OrganizerError(f"Timed out waiting for organizer lock {lock_path}") from exc
+                time.sleep(min(0.25, max(0, deadline - time.monotonic())))
+        LOG.debug("Acquired organizer lock: %s", lock_path)
+        yield
+    finally:
+        try:
+            release_file_lock(handle)
+        except OSError:
+            pass
+        handle.close()
 
 
 def suffix(name: str) -> str:
@@ -446,7 +514,8 @@ def process_torrent(
         f" ({reason})" if reason else "",
     )
     if not dry_run:
-        apply_plan(client, info_hash, category, tag, location, config)
+        with organizer_lock(config):
+            apply_plan(client, info_hash, category, tag, location, config)
         LOG.info("Organized successfully: hash=%s location=%s", info_hash, location)
 
 

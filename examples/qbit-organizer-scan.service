@@ -1,0 +1,11 @@
+[Unit]
+Description=Recover completed qBittorrent books left in staging
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker exec qbittorrent python3 /organizer/organizer.py --config /organizer/config.json --scan-staging
+
+# Do not allow a hung API request or storage move to hold the timer forever.
+TimeoutStartSec=15m
