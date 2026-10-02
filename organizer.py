@@ -21,7 +21,7 @@ from xml.etree import ElementTree
 
 
 LOG = logging.getLogger("qbt-book-organizer")
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 
 
 class OrganizerError(RuntimeError):
@@ -376,7 +376,8 @@ def apply_plan(
 
     # Manual mode is intentional: category paths are top-level, while EPUB paths include the tag.
     client.post("/api/v2/torrents/setAutoManagement", {"hashes": info_hash, "enable": "false"})
-    category_path = f"{str(config['root']).rstrip('/\\')}/{safe_component(category)}"
+    category_root = str(config["root"]).rstrip("/\\")
+    category_path = f"{category_root}/{safe_component(category)}"
     ensure_category(client, category, category_path, bool(config.get("update_existing_category_paths", False)))
     client.post("/api/v2/torrents/setCategory", {"hashes": info_hash, "category": category})
 
@@ -450,7 +451,8 @@ def process_torrent(
 
 
 def scan_staging(client: QbtClient, config: dict[str, Any], dry_run: bool = False) -> tuple[int, int]:
-    staging = str(config.get("staging_path", f"{str(config['root']).rstrip('/\\')}/COMPLETE"))
+    organizer_root = str(config["root"]).rstrip("/\\")
+    staging = str(config.get("staging_path", f"{organizer_root}/COMPLETE"))
     candidates = [
         torrent
         for torrent in client.torrents("completed")

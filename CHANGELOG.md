@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented here. The project follows semantic versioning.
 
+## 0.1.1 — 2026-10-02
+
+- Restore compatibility with Python 3.9 and 3.11 by avoiding backslashes inside f-string expressions.
+
 ## 0.1.0 — 2026-10-02
 
 - Classify completed torrents by ebook, document, audio, image, and graphic-novel formats.
