@@ -23,7 +23,7 @@ from typing import Any
 from xml.etree import ElementTree
 
 LOG = logging.getLogger("qbt-book-organizer")
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 
 
 class OrganizerError(RuntimeError):
@@ -321,7 +321,10 @@ class QbtClient:
         jar = http.cookiejar.CookieJar()
         self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
         response = self._request("POST", "/api/v2/auth/login", {"username": username, "password": password})
-        if response.strip() != b"Ok.":
+        # qBittorrent traditionally returns ``Ok.`` after a successful login.
+        # With localhost authentication bypass enabled, qBittorrent 5.2 may
+        # instead return HTTP 204 with an empty response body.
+        if response.strip() not in {b"", b"Ok."}:
             raise OrganizerError("qBittorrent rejected the login")
 
     def _request(self, method: str, endpoint: str, data: dict[str, Any] | None = None) -> bytes:

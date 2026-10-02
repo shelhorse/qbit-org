@@ -5,7 +5,9 @@ Requires=docker.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/docker exec qbittorrent python3 /organizer/organizer.py --config /organizer/config.json --scan-staging
+# Match the PUID/PGID used by the qBittorrent container so directories and
+# persistent log files remain writable by completion-hook processes.
+ExecStart=/usr/bin/docker exec --user 1000:1000 qbittorrent python3 /organizer/organizer.py --config /organizer/config.json --scan-staging
 
 # Do not allow a hung API request or storage move to hold the timer forever.
 TimeoutStartSec=15m

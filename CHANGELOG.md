@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented here. The project follows semantic versioning.
 
+## 0.2.2 — 2026-10-02
+
+- Accept qBittorrent 5.2's successful empty authentication response when localhost authentication bypass is enabled.
+- Run the example recovery service as the qBittorrent UID/GID to preserve writable directory and log ownership.
+
 ## 0.2.1 — 2026-10-02
 
 - Add Ruff linting and formatting checks.

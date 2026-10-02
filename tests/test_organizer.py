@@ -6,6 +6,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("organizer", ROOT / "organizer.py")
@@ -16,6 +17,17 @@ CONFIG = json.loads((ROOT / "config.example.json").read_text(encoding="utf-8"))
 
 
 class ClassificationTests(unittest.TestCase):
+    def test_client_accepts_empty_localhost_auth_response(self):
+        with mock.patch.object(organizer.QbtClient, "_request", return_value=b""):
+            organizer.QbtClient("http://127.0.0.1:8090", "chris", "")
+
+    def test_client_rejects_failed_auth_response(self):
+        with (
+            mock.patch.object(organizer.QbtClient, "_request", return_value=b"Fails."),
+            self.assertRaisesRegex(organizer.OrganizerError, "rejected the login"),
+        ):
+            organizer.QbtClient("http://127.0.0.1:8090", "chris", "wrong")
+
     def test_epub_cover_is_not_multiformat(self):
         category, detected = organizer.classify_format(["book.epub", "cover.jpg"], CONFIG)
         self.assertEqual(category, "epub")

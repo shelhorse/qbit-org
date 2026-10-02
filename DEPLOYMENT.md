@@ -46,6 +46,8 @@ systemctl list-timers qbit-organizer-scan.timer
 
 The timer runs recovery every 15 minutes. The completion hook remains the primary path; the timer only catches torrents left in staging after a missed or failed hook. The organizer's process lock prevents the timer and hook from mutating qBittorrent simultaneously.
 
+The supplied service runs `docker exec` as UID/GID `1000:1000`, matching the example Compose file's `PUID` and `PGID`. If your container uses different IDs, change `--user` in the service before installing it. Running recovery as root can create destination directories and log files that the qBittorrent process cannot later write.
+
 Inspect timer activity with:
 
 ```sh
