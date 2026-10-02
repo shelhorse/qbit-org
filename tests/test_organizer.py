@@ -1,5 +1,7 @@
 import importlib.util
+import copy
 import json
+import os
 import tempfile
 import unittest
 import zipfile
@@ -77,6 +79,7 @@ class ClassificationTests(unittest.TestCase):
         class FakeClient:
             def __init__(self):
                 self.posts = []
+                self.state = {"category": "", "tags": "", "save_path": "/downloads/COMPLETE"}
 
             def get_json(self, endpoint, data=None):
                 if endpoint.endswith("categories"):
@@ -87,13 +90,104 @@ class ClassificationTests(unittest.TestCase):
 
             def post(self, endpoint, data):
                 self.posts.append((endpoint, data))
+                if endpoint.endswith("setCategory"):
+                    self.state["category"] = data["category"]
+                elif endpoint.endswith("addTags"):
+                    self.state["tags"] = data["tags"]
+                elif endpoint.endswith("setLocation"):
+                    self.state["save_path"] = data["location"]
 
-        client = FakeClient()
-        organizer.apply_plan(client, "abc123", "epub", "fiction", "/downloads/epub/fiction", CONFIG)
-        calls = {endpoint: data for endpoint, data in client.posts}
-        self.assertEqual(calls["/api/v2/torrents/setCategory"]["category"], "epub")
-        self.assertEqual(calls["/api/v2/torrents/addTags"]["tags"], "fiction,VERIFY")
-        self.assertEqual(calls["/api/v2/torrents/setLocation"]["location"], "/downloads/epub/fiction")
+            def torrent(self, info_hash):
+                return self.state
+
+        with tempfile.TemporaryDirectory() as directory:
+            config = copy.deepcopy(CONFIG)
+            config["root"] = directory
+            location = str(Path(directory) / "epub" / "fiction")
+            client = FakeClient()
+            organizer.apply_plan(client, "abc123", "epub", "fiction", location, config)
+            calls = {endpoint: data for endpoint, data in client.posts}
+            self.assertEqual(calls["/api/v2/torrents/setCategory"]["category"], "epub")
+            self.assertEqual(calls["/api/v2/torrents/addTags"]["tags"], "fiction,VERIFY")
+            self.assertEqual(calls["/api/v2/torrents/setLocation"]["location"], location)
+            self.assertTrue(Path(location).is_dir())
+
+    def test_password_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            password_file = Path(directory) / "password"
+            password_file.write_text("secret-value\n", encoding="utf-8")
+            config = {"qbittorrent": {"password_file": str(password_file)}}
+            old_direct = os.environ.pop("QBT_PASSWORD", None)
+            old_file = os.environ.pop("QBT_PASSWORD_FILE", None)
+            try:
+                self.assertEqual(organizer.read_password(config), "secret-value")
+            finally:
+                if old_direct is not None:
+                    os.environ["QBT_PASSWORD"] = old_direct
+                if old_file is not None:
+                    os.environ["QBT_PASSWORD_FILE"] = old_file
+
+    def test_validate_config_rejects_staging_outside_root(self):
+        config = copy.deepcopy(CONFIG)
+        config["staging_path"] = "/somewhere-else"
+        with self.assertRaises(organizer.OrganizerError):
+            organizer.validate_config(config)
+
+    def test_path_is_within_staging(self):
+        self.assertTrue(organizer.path_is_within("/downloads/COMPLETE/book", "/downloads/COMPLETE"))
+        self.assertFalse(organizer.path_is_within("/downloads/COMPLETE-ish/book", "/downloads/COMPLETE"))
+
+    def test_recovery_scan_processes_completed_staging_torrent(self):
+        class FakeClient:
+            def __init__(self, staging):
+                self.state = {
+                    "hash": "recover-me",
+                    "name": "A fantasy novel",
+                    "save_path": staging,
+                    "content_path": f"{staging}/book.epub",
+                    "category": "",
+                    "tags": "",
+                }
+
+            def torrents(self, state_filter):
+                self.assert_filter = state_filter
+                return [self.state]
+
+            def files(self, info_hash):
+                return [{"name": "book.epub"}]
+
+            def get_json(self, endpoint, data=None):
+                if endpoint.endswith("categories"):
+                    return {}
+                if endpoint.endswith("tags"):
+                    return []
+                raise AssertionError(endpoint)
+
+            def post(self, endpoint, data):
+                if endpoint.endswith("setCategory"):
+                    self.state["category"] = data["category"]
+                elif endpoint.endswith("addTags"):
+                    self.state["tags"] = data["tags"]
+                elif endpoint.endswith("setLocation"):
+                    self.state["save_path"] = data["location"]
+
+            def torrent(self, info_hash):
+                return self.state
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            staging = root / "COMPLETE"
+            staging.mkdir()
+            config = copy.deepcopy(CONFIG)
+            config["root"] = str(root)
+            config["staging_path"] = str(staging)
+            config["verification_attempts"] = 1
+            client = FakeClient(str(staging))
+            count, failures = organizer.scan_staging(client, config)
+            self.assertEqual((count, failures), (1, 0))
+            self.assertEqual(client.assert_filter, "completed")
+            self.assertEqual(client.state["save_path"], str(root / "epub" / "fiction"))
+            self.assertEqual(client.state["tags"], "fiction,VERIFY")
 
 
 if __name__ == "__main__":

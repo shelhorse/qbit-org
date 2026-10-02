@@ -10,6 +10,7 @@ import logging
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -20,6 +21,7 @@ from xml.etree import ElementTree
 
 
 LOG = logging.getLogger("qbt-book-organizer")
+VERSION = "0.1.0"
 
 
 class OrganizerError(RuntimeError):
@@ -38,6 +40,104 @@ def load_config(path: Path) -> dict[str, Any]:
     if missing:
         raise OrganizerError(f"Config is missing: {', '.join(missing)}")
     return config
+
+
+def safe_tag(value: str) -> str:
+    value = str(value).strip()
+    if not value or "," in value or "\n" in value or "\r" in value:
+        raise OrganizerError(f"Unsafe or empty tag: {value!r}")
+    return value
+
+
+def validate_config(config: dict[str, Any], check_paths: bool = False) -> None:
+    root = Path(str(config["root"]))
+    if not root.is_absolute():
+        raise OrganizerError("root must be an absolute path as seen inside qBittorrent")
+
+    build_extension_map(config)
+    categories = {safe_component(str(value)) for value in config["format_categories"]}
+    categories.add(safe_component(str(config.get("multiformat_category", "multi-format"))))
+    unknown = config.get("unknown_format_category")
+    if unknown:
+        categories.add(safe_component(str(unknown)))
+
+    rule_tags: list[str] = []
+    for rule in config["classification_rules"]:
+        if "tag" not in rule:
+            raise OrganizerError("Every classification rule must contain a tag")
+        rule_tags.append(safe_tag(str(rule["tag"])))
+        for pattern in rule.get("regex", []):
+            try:
+                re.compile(str(pattern), flags=re.IGNORECASE)
+            except re.error as exc:
+                raise OrganizerError(f"Invalid regex for tag {rule['tag']!r}: {exc}") from exc
+    duplicates = sorted({tag for tag in rule_tags if rule_tags.count(tag) > 1})
+    if duplicates:
+        raise OrganizerError(f"Duplicate classification tags: {', '.join(duplicates)}")
+
+    safe_tag(str(config.get("default_tag", "unclassified")))
+    for value in config.get("always_tags", []):
+        safe_tag(str(value))
+    for category, tag in config.get("format_tag_overrides", {}).items():
+        if category not in categories:
+            raise OrganizerError(f"format_tag_overrides references unknown category {category!r}")
+        safe_tag(str(tag))
+
+    qbt = config.get("qbittorrent", {})
+    url = str(os.environ.get("QBT_URL", qbt.get("url", "http://127.0.0.1:8080")))
+    if urllib.parse.urlparse(url).scheme not in {"http", "https"}:
+        raise OrganizerError("qbittorrent.url must begin with http:// or https://")
+    if int(qbt.get("timeout_seconds", 30)) < 1:
+        raise OrganizerError("qbittorrent.timeout_seconds must be positive")
+    if int(config.get("verification_attempts", 10)) < 1:
+        raise OrganizerError("verification_attempts must be positive")
+    if float(config.get("verification_interval_seconds", 1)) < 0:
+        raise OrganizerError("verification_interval_seconds must not be negative")
+
+    staging = Path(str(config.get("staging_path", root / "COMPLETE")))
+    try:
+        staging.relative_to(root)
+    except ValueError as exc:
+        raise OrganizerError("staging_path must be inside root") from exc
+    if staging == root:
+        raise OrganizerError("staging_path must not be the organizer root")
+
+    if check_paths:
+        for label, path in (("root", root), ("staging_path", staging)):
+            if not path.is_dir():
+                raise OrganizerError(f"{label} does not exist or is not a directory: {path}")
+            if not os.access(path, os.R_OK | os.W_OK | os.X_OK):
+                raise OrganizerError(f"{label} is not accessible for reading and writing: {path}")
+
+
+def configure_logging(config: dict[str, Any], verbose: bool = False) -> None:
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    log_file = config.get("log_file")
+    if log_file:
+        try:
+            handlers.append(logging.FileHandler(str(log_file), encoding="utf-8"))
+        except OSError as exc:
+            raise OrganizerError(f"Cannot open log_file {log_file}: {exc}") from exc
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+        handlers=handlers,
+        force=True,
+    )
+
+
+def read_password(config: dict[str, Any]) -> str:
+    qbt = config.get("qbittorrent", {})
+    direct = os.environ.get("QBT_PASSWORD")
+    if direct is not None:
+        return direct
+    password_file = os.environ.get("QBT_PASSWORD_FILE") or qbt.get("password_file")
+    if password_file:
+        try:
+            return Path(str(password_file)).read_text(encoding="utf-8").rstrip("\r\n")
+        except OSError as exc:
+            raise OrganizerError(f"Cannot read qBittorrent password file {password_file}: {exc}") from exc
+    return str(qbt.get("password", ""))
 
 
 def suffix(name: str) -> str:
@@ -172,7 +272,7 @@ class QbtClient:
             url,
             data=body,
             method=method,
-            headers={"Referer": self.base_url, "User-Agent": "qbt-book-organizer/1.0"},
+            headers={"Referer": self.base_url, "User-Agent": f"qbt-book-organizer/{VERSION}"},
         )
         try:
             with self.opener.open(request, timeout=self.timeout) as response:
@@ -186,6 +286,9 @@ class QbtClient:
     def get_json(self, endpoint: str, data: dict[str, Any] | None = None) -> Any:
         return json.loads(self._request("GET", endpoint, data).decode("utf-8"))
 
+    def get_text(self, endpoint: str, data: dict[str, Any] | None = None) -> str:
+        return self._request("GET", endpoint, data).decode("utf-8", "replace").strip()
+
     def post(self, endpoint: str, data: dict[str, Any]) -> None:
         self._request("POST", endpoint, data)
 
@@ -195,6 +298,9 @@ class QbtClient:
             if torrent.get("hash", "").casefold() == info_hash.casefold():
                 return torrent
         raise OrganizerError(f"Torrent hash {info_hash} was not found")
+
+    def torrents(self, state_filter: str = "all") -> list[dict[str, Any]]:
+        return self.get_json("/api/v2/torrents/info", {"filter": state_filter})
 
     def files(self, info_hash: str) -> list[dict[str, Any]]:
         return self.get_json("/api/v2/torrents/files", {"hash": info_hash})
@@ -222,6 +328,37 @@ def ensure_category(client: QbtClient, category: str, save_path: str, update_exi
         client.post("/api/v2/torrents/editCategory", {"category": category, "savePath": save_path})
 
 
+def split_tags(value: str) -> set[str]:
+    return {part.strip() for part in str(value).split(",") if part.strip()}
+
+
+def verify_plan(
+    client: QbtClient,
+    info_hash: str,
+    category: str,
+    desired_tags: Iterable[str],
+    location: str,
+    attempts: int,
+    interval_seconds: float,
+) -> None:
+    expected_tags = set(desired_tags)
+    last: dict[str, Any] = {}
+    for attempt in range(attempts):
+        last = client.torrent(info_hash)
+        category_ok = last.get("category") == category
+        tags_ok = expected_tags <= split_tags(str(last.get("tags", "")))
+        path_ok = str(last.get("save_path", "")).rstrip("/\\") == location.rstrip("/\\")
+        if category_ok and tags_ok and path_ok:
+            return
+        if attempt + 1 < attempts:
+            time.sleep(interval_seconds)
+    raise OrganizerError(
+        "qBittorrent did not reach the requested state: "
+        f"category={last.get('category')!r}, tags={last.get('tags')!r}, "
+        f"save_path={last.get('save_path')!r}"
+    )
+
+
 def apply_plan(
     client: QbtClient,
     info_hash: str,
@@ -230,6 +367,13 @@ def apply_plan(
     location: str,
     config: dict[str, Any],
 ) -> None:
+    try:
+        Path(location).mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise OrganizerError(f"Cannot create destination {location}: {exc}") from exc
+    if not os.access(location, os.R_OK | os.W_OK | os.X_OK):
+        raise OrganizerError(f"Destination is not accessible for reading and writing: {location}")
+
     # Manual mode is intentional: category paths are top-level, while EPUB paths include the tag.
     client.post("/api/v2/torrents/setAutoManagement", {"hashes": info_hash, "enable": "false"})
     category_path = f"{str(config['root']).rstrip('/\\')}/{safe_component(category)}"
@@ -250,16 +394,102 @@ def apply_plan(
     client.post("/api/v2/torrents/removeTags", {"hashes": info_hash, "tags": ",".join(managed_tags)})
     client.post("/api/v2/torrents/addTags", {"hashes": info_hash, "tags": ",".join(desired_tags)})
     client.post("/api/v2/torrents/setLocation", {"hashes": info_hash, "location": location})
+    verify_plan(
+        client,
+        info_hash,
+        category,
+        desired_tags,
+        location,
+        int(config.get("verification_attempts", 10)),
+        float(config.get("verification_interval_seconds", 1)),
+    )
+
+
+def path_is_within(value: str, parent: str) -> bool:
+    try:
+        Path(value).resolve(strict=False).relative_to(Path(parent).resolve(strict=False))
+        return True
+    except ValueError:
+        return False
+
+
+def process_torrent(
+    client: QbtClient,
+    torrent: dict[str, Any],
+    config: dict[str, Any],
+    content_path: str | None = None,
+    dry_run: bool = False,
+) -> None:
+    info_hash = str(torrent.get("hash", ""))
+    if not info_hash:
+        raise OrganizerError("Torrent response did not include a hash")
+    files = client.files(info_hash)
+    file_names = [str(item.get("name", "")) for item in files]
+    category, detected = classify_format(file_names, config)
+    if not category:
+        raise OrganizerError("No recognized book format; leaving the torrent unchanged")
+
+    readable_path = content_path or str(torrent.get("content_path", "")) or None
+    metadata = [torrent.get("name", ""), *file_names, *local_epub_metadata(readable_path)]
+    tag, reason = classify_subject(metadata, config, category)
+    location = desired_location(config, category, tag)
+    LOG.info(
+        "Decision: hash=%s name=%r source=%s formats=%s category=%s tag=%s location=%s%s",
+        info_hash,
+        torrent.get("name", ""),
+        torrent.get("save_path", ""),
+        ",".join(sorted(detected)) or "unknown",
+        category,
+        tag,
+        location,
+        f" ({reason})" if reason else "",
+    )
+    if not dry_run:
+        apply_plan(client, info_hash, category, tag, location, config)
+        LOG.info("Organized successfully: hash=%s location=%s", info_hash, location)
+
+
+def scan_staging(client: QbtClient, config: dict[str, Any], dry_run: bool = False) -> tuple[int, int]:
+    staging = str(config.get("staging_path", f"{str(config['root']).rstrip('/\\')}/COMPLETE"))
+    candidates = [
+        torrent
+        for torrent in client.torrents("completed")
+        if path_is_within(str(torrent.get("save_path", "")), staging)
+        or path_is_within(str(torrent.get("content_path", "")), staging)
+    ]
+    LOG.info("Recovery scan found %d completed torrent(s) in %s", len(candidates), staging)
+    failures = 0
+    for torrent in candidates:
+        try:
+            process_torrent(client, torrent, config, dry_run=dry_run)
+        except (OrganizerError, ValueError, re.error) as exc:
+            failures += 1
+            LOG.error("Recovery failed: hash=%s name=%r error=%s", torrent.get("hash", ""), torrent.get("name", ""), exc)
+    return len(candidates), failures
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--hash", dest="info_hash", required=True, help="Completed torrent info hash (qBittorrent: %%I)")
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--hash", dest="info_hash", help="Completed torrent info hash (qBittorrent: %%I)")
+    mode.add_argument("--scan-staging", action="store_true", help="Process completed torrents still in staging_path")
+    mode.add_argument("--check-config", action="store_true", help="Validate rules, paths, credentials, and API access")
     parser.add_argument("--content-path", help="Optional local content path (qBittorrent: %%F) for EPUB metadata")
     parser.add_argument("--config", type=Path, default=Path(__file__).with_name("config.json"))
     parser.add_argument("--dry-run", action="store_true", help="Show the decision without changing qBittorrent")
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
     return parser.parse_args(argv)
+
+
+def create_client(config: dict[str, Any]) -> QbtClient:
+    qbt = config.get("qbittorrent", {})
+    return QbtClient(
+        os.environ.get("QBT_URL", qbt.get("url", "http://127.0.0.1:8080")),
+        os.environ.get("QBT_USERNAME", qbt.get("username", "admin")),
+        read_password(config),
+        int(qbt.get("timeout_seconds", 30)),
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -267,39 +497,24 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
+        force=True,
     )
     try:
         config = load_config(args.config)
-        qbt = config.get("qbittorrent", {})
-        password = os.environ.get("QBT_PASSWORD", qbt.get("password", ""))
-        client = QbtClient(
-            os.environ.get("QBT_URL", qbt.get("url", "http://127.0.0.1:8080")),
-            os.environ.get("QBT_USERNAME", qbt.get("username", "admin")),
-            password,
-            int(qbt.get("timeout_seconds", 30)),
-        )
-        torrent = client.torrent(args.info_hash)
-        files = client.files(args.info_hash)
-        file_names = [str(item.get("name", "")) for item in files]
-        category, detected = classify_format(file_names, config)
-        if not category:
-            raise OrganizerError("No recognized book format; leaving the torrent unchanged")
+        configure_logging(config, args.verbose)
+        validate_config(config, check_paths=args.check_config or args.scan_staging)
+        client = create_client(config)
+        if args.check_config:
+            version = client.get_text("/api/v2/app/version")
+            LOG.info("Configuration is valid; connected to qBittorrent %s", version)
+            return 0
+        if args.scan_staging:
+            count, failures = scan_staging(client, config, dry_run=args.dry_run)
+            LOG.info("Recovery scan complete: candidates=%d failures=%d", count, failures)
+            return 1 if failures else 0
 
-        metadata = [torrent.get("name", ""), *file_names, *local_epub_metadata(args.content_path)]
-        tag, reason = classify_subject(metadata, config, category)
-        location = desired_location(config, category, tag)
-        LOG.info(
-            "Decision: name=%r formats=%s category=%s tag=%s location=%s%s",
-            torrent.get("name", ""),
-            ",".join(sorted(detected)) or "unknown",
-            category,
-            tag,
-            location,
-            f" ({reason})" if reason else "",
-        )
-        if not args.dry_run:
-            apply_plan(client, args.info_hash, category, tag, location, config)
-            LOG.info("qBittorrent updated successfully")
+        torrent = client.torrent(args.info_hash)
+        process_torrent(client, torrent, config, args.content_path, args.dry_run)
         return 0
     except (OrganizerError, ValueError, re.error) as exc:
         LOG.error("%s", exc)

@@ -2,10 +2,14 @@
   "qbittorrent": {
     "url": "http://127.0.0.1:8090",
     "username": "admin",
-    "password": "CHANGE_ME_OR_USE_QBT_PASSWORD",
+    "password_file": "/run/secrets/qbt_password",
     "timeout_seconds": 30
   },
   "root": "/downloads",
+  "staging_path": "/downloads/COMPLETE",
+  "log_file": "/config/qbit-organizer.log",
+  "verification_attempts": 10,
+  "verification_interval_seconds": 1,
   "epub_category": "epub",
   "multiformat_category": "multi-format",
   "unknown_format_category": null,

@@ -28,7 +28,7 @@ No Python packages are required.
    - Change `root` to your real root as seen by qBittorrent.
    - Set the Web UI URL and username.
    - Customize extensions, tags, and keyword rules.
-4. Prefer putting the password in the `QBT_PASSWORD` environment variable. If that is inconvenient for the qBittorrent service, put it in `config.json` and restrict that file to the qBittorrent account.
+4. Prefer a Docker secret or `QBT_PASSWORD_FILE`. `QBT_PASSWORD` is also supported. Putting the password directly in `config.json` is supported only as a fallback.
 5. On Linux/macOS, make `organizer.py` executable.
 6. Test one completed torrent from a terminal first:
 
@@ -61,7 +61,8 @@ The official `ghcr.io/qbittorrent/docker-qbittorrent-nox` image already includes
 ```yaml
 services:
   qbittorrent:
-    image: ghcr.io/qbittorrent/docker-qbittorrent-nox:latest
+    # Deliberately pinned; review and update this tag when upgrading qBittorrent.
+    image: ghcr.io/qbittorrent/docker-qbittorrent-nox:5.2.3-1
     container_name: qbittorrent
     restart: unless-stopped
     stop_grace_period: 30m
@@ -85,8 +86,15 @@ services:
       - /data/docker/qbittorrent/watch:/watch
       - /data/docker/qbittorrent/organizer:/organizer:ro
 
+    secrets:
+      - qbt_password
+
     tmpfs:
       - /tmp:noexec,nosuid,size=100M
+
+secrets:
+  qbt_password:
+    file: /data/docker/qbittorrent/secrets/qbt_password
 ```
 
 Copy `organizer.py` and a private `config.json` into `/data/docker/qbittorrent/organizer` on the host. `config.json` is intentionally excluded by `.gitignore` because it may contain the Web UI password. In this layout its essential settings are:
@@ -96,11 +104,23 @@ Copy `organizer.py` and a private `config.json` into `/data/docker/qbittorrent/o
   "qbittorrent": {
     "url": "http://127.0.0.1:8090",
     "username": "admin",
-    "password": "YOUR_WEBUI_PASSWORD"
+    "password_file": "/run/secrets/qbt_password"
   },
-  "root": "/downloads"
+  "root": "/downloads",
+  "staging_path": "/downloads/COMPLETE",
+  "log_file": "/config/qbit-organizer.log"
 }
 ```
+
+Create the password file outside the organizer directory and restrict it to the administrator:
+
+```sh
+sudo install -d -m 700 /data/docker/qbittorrent/secrets
+sudoedit /data/docker/qbittorrent/secrets/qbt_password
+sudo chmod 600 /data/docker/qbittorrent/secrets/qbt_password
+```
+
+Enter only the Web UI password in that file, without quotes.
 
 Configure qBittorrent's completion command inside the Web UI:
 
@@ -134,9 +154,42 @@ The resulting flow is:
 /downloads/multi-format
 ```
 
-The organizer does not need a staging-path setting. It inspects the completed torrent wherever it currently resides and calculates the final location from `root`. If classification or relocation fails, the torrent remains conspicuously in `COMPLETE` for manual review. Re-running the hook for the same torrent is safe.
+The completion hook does not use `staging_path` to calculate destinations. It inspects the completed torrent wherever it currently resides and calculates the final location from `root`. `staging_path` is used only by recovery scans. If classification or relocation fails, the torrent remains conspicuously in `COMPLETE` for manual review. Re-running the hook for the same torrent is safe.
 
 Create the staging directories and ensure UID/GID 1000 can write to the download tree before enabling the hook. Pre-creating the format and EPUB tag directories is also a useful way to detect permission mistakes during setup.
+
+## Validation and recovery
+
+Validate the complete configuration, filesystem permissions, credentials, and qBittorrent API connection before enabling the hook:
+
+```sh
+docker exec qbittorrent python3 /organizer/organizer.py \
+  --config /organizer/config.json --check-config
+```
+
+If a completion hook is missed because of a restart or temporary failure, scan every completed torrent still under `staging_path`:
+
+```sh
+docker exec qbittorrent python3 /organizer/organizer.py \
+  --config /organizer/config.json --scan-staging
+```
+
+Preview the recovery decisions without changing anything:
+
+```sh
+docker exec qbittorrent python3 /organizer/organizer.py \
+  --config /organizer/config.json --scan-staging --dry-run
+```
+
+The recovery command is safe to schedule from the Docker host with cron or a systemd timer. It considers only completed torrents whose save or content path is inside `staging_path`. A failure processing one torrent does not prevent the remaining candidates from being attempted.
+
+Before moving a torrent, the organizer creates the destination directory. It then verifies that qBittorrent reports the requested category, all requested tags, and the final save path. The retry count and interval are controlled by `verification_attempts` and `verification_interval_seconds`.
+
+## Logging
+
+Console output is always available to qBittorrent's external-program log. When `log_file` is configured, the same records are appended there. Each decision includes the torrent hash, name, original path, detected formats, category, tag, and destination. Credentials are never logged.
+
+In the documented Docker layout, the default log is persistent at `/config/qbit-organizer.log` inside the container and under `/data/docker/qbittorrent/config` on the host.
 
 ## Classification behavior
 
@@ -159,6 +212,7 @@ For non-EPUB formats the tag is still added, but the location remains the top-le
 ## Operational notes
 
 - Run the dry-run command before enabling the hook.
+- Run `--check-config` after changing rules, paths, credentials, or container mounts.
 - qBittorrent must have permission to create and move into every destination.
 - `root` is not necessarily the host path for a Docker volume. If qBittorrent sees `/downloads`, use that even if the host calls it `/data/docker/qbittorrent/downloads`.
 - Leave `update_existing_category_paths` false if you manage qBittorrent category paths yourself. Set it true only if this script should enforce each category's top-level path.
@@ -168,3 +222,13 @@ For non-EPUB formats the tag is still added, but the location remains the top-le
 ## Troubleshooting
 
 Run the command manually with `--verbose --dry-run`. Errors are written to qBittorrent's execution log when it captures hook output. Common causes are an incorrect Web UI URL, Web UI authentication settings, a container path mismatch, or insufficient write permission at the destination.
+
+Check the persistent log with:
+
+```sh
+docker exec qbittorrent tail -n 100 /config/qbit-organizer.log
+```
+
+## Releases
+
+The organizer follows semantic versioning. Review [CHANGELOG.md](CHANGELOG.md) before upgrading. The Docker example pins qBittorrent rather than tracking `latest`; update the image tag deliberately after reviewing qBittorrent's release notes and backing up `/config`.
