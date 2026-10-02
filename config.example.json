@@ -1,0 +1,72 @@
+{
+  "qbittorrent": {
+    "url": "http://127.0.0.1:8080",
+    "username": "admin",
+    "password": "CHANGE_ME_OR_USE_QBT_PASSWORD",
+    "timeout_seconds": 30
+  },
+  "root": "/books",
+  "epub_category": "epub",
+  "multiformat_category": "multi-format",
+  "unknown_format_category": null,
+  "update_existing_category_paths": false,
+  "book_categories": ["epub", "azw3", "mobi", "pdf"],
+  "auxiliary_categories_when_book_present": ["images"],
+  "ignored_extensions": ["txt", "nfo", "md5", "sfv", "url", "opf"],
+  "format_categories": {
+    "epub": ["epub"],
+    "azw3": ["azw3", "azw", "kfx"],
+    "mobi": ["mobi", "prc"],
+    "pdf": ["pdf"],
+    "audio": ["m4b", "mp3", "aac", "m4a", "flac", "ogg", "opus", "wav"],
+    "images": ["jpg", "jpeg", "png", "webp", "tif", "tiff"],
+    "graphicnovels": ["cbz", "cbr", "cb7", "cbt"]
+  },
+  "default_tag": "unclassified",
+  "always_tags": ["VERIFY"],
+  "format_tag_overrides": {
+    "audio": "audiobooks"
+  },
+  "classification_rules": [
+    {
+      "tag": "coffee",
+      "keywords": ["coffee", "espresso", "barista", "cafe", "café", "roasting"]
+    },
+    {
+      "tag": "cooking",
+      "keywords": ["cookbook", "cooking", "recipe", "recipes", "baking", "cuisine", "culinary"]
+    },
+    {
+      "tag": "travel",
+      "keywords": ["travel", "travel guide", "guidebook", "lonely planet", "rough guides", "rick steves"]
+    },
+    {
+      "tag": "health",
+      "keywords": ["health", "medicine", "medical", "nutrition", "fitness", "wellness", "anatomy", "disease"]
+    },
+    {
+      "tag": "collections",
+      "keywords": ["anthology", "collection", "collected works", "complete works", "omnibus", "box set", "boxed set"]
+    },
+    {
+      "tag": "compsci",
+      "keywords": ["computer science", "programming", "software engineering", "software development", "web development", "data structures", "algorithms", "database", "cybersecurity", "machine learning", "artificial intelligence"]
+    },
+    {
+      "tag": "craft",
+      "keywords": ["diy", "do it yourself", "craft", "crafts", "woodworking", "carpentry", "construction", "home improvement", "maker", "knitting", "crochet", "sewing", "quilting", "metalworking"]
+    },
+    {
+      "tag": "language",
+      "keywords": ["language learning", "learn spanish", "learn french", "learn german", "learn italian", "learn japanese", "learn chinese", "linguistics", "grammar", "vocabulary", "bilingual", "foreign language", "esl", "tesol"]
+    },
+    {
+      "tag": "fiction",
+      "keywords": ["fiction", "novel", "fantasy", "romance", "mystery", "thriller", "horror", "science fiction", "short stories"]
+    },
+    {
+      "tag": "nonfiction",
+      "keywords": ["nonfiction", "non-fiction", "history", "biography", "memoir", "science", "philosophy", "business", "economics", "politics", "self-help", "reference"]
+    }
+  ]
+}
