@@ -242,3 +242,22 @@ docker exec qbittorrent tail -n 100 /config/qbit-organizer.log
 ## Releases
 
 The organizer follows semantic versioning. Review [CHANGELOG.md](CHANGELOG.md) before upgrading. The Docker example pins qBittorrent rather than tracking `latest`; update the image tag deliberately after reviewing qBittorrent's release notes and backing up `/config`.
+
+## Development checks
+
+Runtime operation remains dependency-free. Contributors can install the pinned development-only tools with:
+
+```sh
+python3 -m pip install -r requirements-dev.txt
+```
+
+Run the same checks used by GitHub Actions:
+
+```sh
+ruff check .
+ruff format --check .
+coverage run -m unittest discover -s tests -v
+coverage report
+```
+
+Ruff detects likely errors and enforces consistent formatting. Coverage reports statement and branch coverage with missing line numbers. Coverage is informational: the project does not reject a change solely because of a percentage threshold.

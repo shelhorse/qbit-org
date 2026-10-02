@@ -1,0 +1,21 @@
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B", "SIM", "UP"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.coverage.run]
+branch = true
+source = ["organizer"]
+
+[tool.coverage.report]
+precision = 1
+show_missing = true
+skip_covered = false
+

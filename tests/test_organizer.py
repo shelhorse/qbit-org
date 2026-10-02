@@ -1,12 +1,11 @@
-import importlib.util
 import copy
+import importlib.util
 import json
 import os
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("organizer", ROOT / "organizer.py")
@@ -57,13 +56,13 @@ class ClassificationTests(unittest.TestCase):
         self.assertIsNone(reason)
 
     def test_epub_metadata(self):
-        container = b'''<?xml version="1.0"?>
+        container = b"""<?xml version="1.0"?>
         <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
           <rootfiles><rootfile full-path="content.opf"/></rootfiles>
-        </container>'''
-        opf = b'''<package xmlns:dc="http://purl.org/dc/elements/1.1/">
+        </container>"""
+        opf = b"""<package xmlns:dc="http://purl.org/dc/elements/1.1/">
           <metadata><dc:title>A Book</dc:title><dc:subject>Travel</dc:subject></metadata>
-        </package>'''
+        </package>"""
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "book.epub"
             with zipfile.ZipFile(path, "w") as book:
@@ -196,10 +195,12 @@ class ClassificationTests(unittest.TestCase):
                 "lock_file": str(Path(directory) / "organizer.lock"),
                 "lock_timeout_seconds": 0,
             }
-            with organizer.organizer_lock(config):
-                with self.assertRaises(organizer.OrganizerError):
-                    with organizer.organizer_lock(config):
-                        self.fail("second lock acquisition unexpectedly succeeded")
+            with (
+                organizer.organizer_lock(config),
+                self.assertRaises(organizer.OrganizerError),
+                organizer.organizer_lock(config),
+            ):
+                self.fail("second lock acquisition unexpectedly succeeded")
 
 
 if __name__ == "__main__":

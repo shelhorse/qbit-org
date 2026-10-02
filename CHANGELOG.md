@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented here. The project follows semantic versioning.
 
+## 0.2.1 — 2026-10-02
+
+- Add Ruff linting and formatting checks.
+- Add branch-coverage reporting without enforcing a minimum percentage.
+- Run quality checks automatically in GitHub Actions.
+- Update GitHub Actions to Node 24-compatible releases.
+
 ## 0.2.0 — 2026-10-02
 
 - Serialize completion hooks and recovery scans with a crash-safe operating-system file lock.

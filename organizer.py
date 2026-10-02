@@ -16,14 +16,14 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
+from collections.abc import Iterable
+from contextlib import contextmanager, suppress
 from pathlib import Path, PurePosixPath
-from typing import Any, Iterable
+from typing import Any
 from xml.etree import ElementTree
-from contextlib import contextmanager
-
 
 LOG = logging.getLogger("qbt-book-organizer")
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 
 
 class OrganizerError(RuntimeError):
@@ -201,10 +201,8 @@ def organizer_lock(config: dict[str, Any]) -> Iterable[None]:
         LOG.debug("Acquired organizer lock: %s", lock_path)
         yield
     finally:
-        try:
+        with suppress(OSError):
             release_file_lock(handle)
-        except OSError:
-            pass
         handle.close()
 
 
@@ -218,9 +216,7 @@ def build_extension_map(config: dict[str, Any]) -> dict[str, str]:
         for extension in extensions:
             normalized = str(extension).lower().lstrip(".")
             if normalized in result:
-                raise OrganizerError(
-                    f"Extension .{normalized} appears in both {result[normalized]!r} and {category!r}"
-                )
+                raise OrganizerError(f"Extension .{normalized} appears in both {result[normalized]!r} and {category!r}")
             result[normalized] = category
     return result
 
@@ -535,7 +531,9 @@ def scan_staging(client: QbtClient, config: dict[str, Any], dry_run: bool = Fals
             process_torrent(client, torrent, config, dry_run=dry_run)
         except (OrganizerError, ValueError, re.error) as exc:
             failures += 1
-            LOG.error("Recovery failed: hash=%s name=%r error=%s", torrent.get("hash", ""), torrent.get("name", ""), exc)
+            LOG.error(
+                "Recovery failed: hash=%s name=%r error=%s", torrent.get("hash", ""), torrent.get("name", ""), exc
+            )
     return len(candidates), failures
 
 
