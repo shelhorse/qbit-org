@@ -5,8 +5,10 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-User=mo
-Group=mo
+# REQUIRED: replace [user] with the host account that owns the download tree
+# before installing or enabling this unit.
+User=[user]
+Group=[user]
 ExecStart=/usr/bin/python3 /data/docker/qbittorrent/organizer/sync_books.py --config /data/docker/qbittorrent/organizer/sync.json --job %i
 TimeoutStartSec=2h
 Nice=10

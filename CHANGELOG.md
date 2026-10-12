@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented here. The project follows semantic versioning.
 
+## 0.4.2 — 2026-10-12
+
+- Replace the example mirror service's host-specific account with a required `[user]` placeholder.
+- Remind new installations and upgrades to substitute their local service account, and document repository-local Git identity placeholders.
+
 ## 0.4.1 — 2026-10-12
 
 - Clarify the project's purpose, supported deployment models, container boundaries, component locations, and optional recovery and cloud-mirroring services.

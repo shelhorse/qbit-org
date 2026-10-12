@@ -233,6 +233,8 @@ python3 /data/docker/qbittorrent/organizer/sync_books.py \
 
 The temporary hard-link tree must be on the same filesystem as the source files. The example therefore places `staging_root` under the qBittorrent download tree. It is removed automatically after each mirror run.
 
+Before installing `examples/qbit-books-sync@.service`, replace both `[user]` placeholders with the host account that owns the download tree. If its primary group has a different name, set `Group=` separately. Recheck these values whenever installing the unit on a new host or replacing a locally customized unit during an upgrade.
+
 The mirror uses `rclone sync`, so remote files missing from the combined local source view are deleted. `max_delete` limits the number of deletions in one run. Set `sync_trigger.enabled` to `true` in the organizer configuration only after reviewing the dry run and installing the service and path units.
 
 ## Logging
@@ -301,3 +303,12 @@ coverage report
 ```
 
 Ruff detects likely errors and enforces consistent formatting. Coverage reports statement and branch coverage with missing line numbers. Coverage is informational: the project does not reject a change solely because of a percentage threshold.
+
+Git records the configured name and email address in every commit. Before committing from a new workstation, check the repository-local identity and replace these documentation placeholders with an identity you intend to publish:
+
+```sh
+git config --local user.name "[user]"
+git config --local user.email "[user@host.lan]"
+```
+
+Do not copy the bracketed values literally. They are reminders to supply local values and keep workstation-specific defaults out of public commit metadata.

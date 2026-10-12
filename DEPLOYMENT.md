@@ -61,15 +61,16 @@ The organizer can request a host-side rclone mirror after it successfully moves 
 1. Copy `sync.example.json` to `/data/docker/qbittorrent/organizer/sync.json` and adjust the jobs if necessary.
 2. Run `sync_books.py --check-config`, followed by `sync_books.py --dry-run`. Review deletions carefully.
 3. Copy `examples/qbit-books-sync@.service` and `examples/qbit-books-sync@.path` to `/etc/systemd/system/`.
-4. Enable `sync_trigger` in the private organizer configuration.
-5. Reload systemd and enable the path watcher:
+4. In the installed service file, replace both `[user]` placeholders with the host account that owns the download tree. If that account's primary group has a different name, set `Group=` accordingly.
+5. Enable `sync_trigger` in the private organizer configuration.
+6. Reload systemd and enable the path watcher:
 
    ```sh
    sudo systemctl daemon-reload
    sudo systemctl enable --now qbit-books-sync@fiction.path qbit-books-sync@nonfiction.path
    ```
 
-The example watches separate fiction and nonfiction trigger files and runs the matching mirror as host user `mo`. Adjust those values when deploying under a different host layout or account. View results with `journalctl -u 'qbit-books-sync@*.service'`.
+The `[user]` value is intentionally not a working systemd account. It prevents an example-specific username from being installed accidentally and must be replaced during every new local installation. View results with `journalctl -u 'qbit-books-sync@*.service'`.
 
 ## Upgrade
 
@@ -77,9 +78,10 @@ The example watches separate fiction and nonfiction trigger files and runs the m
 2. Download the desired organizer release and review `CHANGELOG.md`.
 3. Replace `organizer.py` and the documentation files. Do not overwrite the private `config.json` with `config.example.json`.
 4. Compare the new example configuration with the private configuration and add any new settings deliberately.
-5. Run `--check-config`.
-6. Run `--scan-staging --dry-run` and review the decisions.
-7. No container restart is required for an organizer-only update: each hook starts a new Python process and reads the current mounted file.
+5. If replacing the installed mirror service with the release's example, substitute the local `User=` and `Group=` values for `[user]` before reloading systemd. Do not overwrite a working customized unit without carrying those values forward.
+6. Run `--check-config`.
+7. Run `--scan-staging --dry-run` and review the decisions.
+8. No container restart is required for an organizer-only update: each hook starts a new Python process and reads the current mounted file.
 
 Upgrade the qBittorrent image separately. Back up `/config`, change the pinned image tag, pull it, and recreate the service only after reviewing qBittorrent's release notes.
 
