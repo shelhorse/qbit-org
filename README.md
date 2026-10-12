@@ -1,6 +1,12 @@
-# qBittorrent book organizer
+# qBittorrent media organizer for books
 
-This completion hook classifies a torrent by the formats it contains, assigns one subject tag, and asks qBittorrent to move its storage. Because qBittorrent performs the move, the torrent remains seedable.
+qBittorrent is well suited to acquiring and seeding a media collection, but a growing download directory is not necessarily a useful library. This project adds an organization step when a torrent completes: it inspects the files, classifies the media by format and, especially for books, by subject, then asks qBittorrent to place it in a predictable directory structure. Because qBittorrent performs the move, the content remains connected to the torrent and can continue seeding.
+
+The primary goal is to make a library easy to replicate selectively. A hierarchy based on format and subject lets a sync or backup tool target only the material wanted at a particular destination—for example, EPUB fiction and nonfiction in cloud storage—without also copying PDFs, alternate ebook formats, audiobooks, or unrelated subjects. The local qBittorrent library remains the source of truth, while each replica can contain a deliberate subset of it.
+
+Although the completion-hook pattern can help organize other media, this implementation is designed around books and common publishing formats. It includes an optional, separate Google Drive mirroring workflow as a practical example; the organized directory layout can also be used with other cloud, backup, or replication tools.
+
+At completion, the hook classifies a torrent by the formats it contains, assigns one subject tag, and asks qBittorrent to move its storage.
 
 Examples:
 
