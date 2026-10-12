@@ -84,9 +84,13 @@ class ClassificationTests(unittest.TestCase):
 
     def test_destination_layout(self):
         self.assertEqual(organizer.desired_location(CONFIG, "epub", "fiction"), "/downloads/epub/fiction")
+        self.assertEqual(
+            organizer.desired_location(CONFIG, "multi-format", "cooking"),
+            "/downloads/multi-format/cooking",
+        )
         self.assertEqual(organizer.desired_location(CONFIG, "pdf", "fiction"), "/downloads/pdf")
 
-    def test_sync_trigger_is_limited_to_configured_epub_tags(self):
+    def test_sync_trigger_is_limited_to_mirrored_categories_and_tags(self):
         with tempfile.TemporaryDirectory() as directory:
             trigger = Path(directory) / "sync.trigger"
             config = copy.deepcopy(CONFIG)
@@ -96,6 +100,10 @@ class ClassificationTests(unittest.TestCase):
             }
 
             organizer.signal_sync(config, "epub", "fiction")
+            self.assertTrue(trigger.exists())
+
+            trigger.unlink()
+            organizer.signal_sync(config, "multi-format", "fiction")
             self.assertTrue(trigger.exists())
 
             trigger.unlink()

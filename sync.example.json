@@ -1,17 +1,56 @@
 {
   "rclone": "/usr/bin/rclone",
   "lock_file": "/data/docker/qbittorrent/config/qbit-books-sync-{job}.lock",
+  "staging_root": "/data/docker/qbittorrent/downloads/.qbit-books-sync-staging",
   "max_delete": 20,
   "log_level": "INFO",
   "jobs": [
     {
       "name": "fiction",
-      "source": "/data/docker/qbittorrent/downloads/epub/fiction",
+      "sources": [
+        "/data/docker/qbittorrent/downloads/epub/fiction",
+        {
+          "path": "/data/docker/qbittorrent/downloads/multi-format/fiction",
+          "extensions": [
+            ".epub",
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp",
+            ".opf",
+            ".ncx",
+            ".txt",
+            ".json",
+            ".nfo",
+            ".md5",
+            ".sfv"
+          ]
+        }
+      ],
       "destination": "gdrive:@ DriveSync/epub mirror/fiction"
     },
     {
       "name": "nonfiction",
-      "source": "/data/docker/qbittorrent/downloads/epub/nonfiction",
+      "sources": [
+        "/data/docker/qbittorrent/downloads/epub/nonfiction",
+        {
+          "path": "/data/docker/qbittorrent/downloads/multi-format/nonfiction",
+          "extensions": [
+            ".epub",
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp",
+            ".opf",
+            ".ncx",
+            ".txt",
+            ".json",
+            ".nfo",
+            ".md5",
+            ".sfv"
+          ]
+        }
+      ],
       "destination": "gdrive:@ DriveSync/epub mirror/nonfiction"
     }
   ]

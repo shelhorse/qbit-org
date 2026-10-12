@@ -23,7 +23,7 @@ from typing import Any
 from xml.etree import ElementTree
 
 LOG = logging.getLogger("qbt-book-organizer")
-VERSION = "0.3.1"
+VERSION = "0.4.0"
 
 
 class OrganizerError(RuntimeError):
@@ -382,7 +382,11 @@ def safe_component(value: str) -> str:
 def desired_location(config: dict[str, Any], category: str, tag: str) -> str:
     root = str(config["root"]).rstrip("/\\")
     category = safe_component(category)
-    if category == config.get("epub_category", "epub"):
+    subject_directory_categories = {
+        str(config.get("epub_category", "epub")),
+        str(config.get("multiformat_category", "multi-format")),
+    }
+    if category in subject_directory_categories:
         return f"{root}/{category}/{safe_component(tag)}"
     return f"{root}/{category}"
 
@@ -441,7 +445,7 @@ def apply_plan(
     if not os.access(location, os.R_OK | os.W_OK | os.X_OK):
         raise OrganizerError(f"Destination is not accessible for reading and writing: {location}")
 
-    # Manual mode is intentional: category paths are top-level, while EPUB paths include the tag.
+    # Manual mode is intentional: EPUB and multi-format paths include the tag.
     client.post("/api/v2/torrents/setAutoManagement", {"hashes": info_hash, "enable": "false"})
     category_root = str(config["root"]).rstrip("/\\")
     category_path = f"{category_root}/{safe_component(category)}"
@@ -477,14 +481,18 @@ def signal_sync(config: dict[str, Any], category: str, tag: str) -> None:
     trigger = config.get("sync_trigger", {})
     if not trigger.get("enabled", False):
         return
-    if category != config.get("epub_category", "epub"):
+    mirrored_categories = {
+        str(config.get("epub_category", "epub")),
+        str(config.get("multiformat_category", "multi-format")),
+    }
+    if category not in mirrored_categories:
         return
     trigger_path = trigger.get("files", {}).get(tag)
     if not trigger_path:
         return
     trigger_file = Path(str(trigger_path))
     if not trigger_file.is_absolute():
-        raise OrganizerError("sync_trigger.file must be an absolute path")
+        raise OrganizerError("sync trigger paths must be absolute")
     try:
         trigger_file.parent.mkdir(parents=True, exist_ok=True)
         trigger_file.touch(exist_ok=True)

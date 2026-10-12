@@ -21,9 +21,74 @@ class SyncBooksTests(unittest.TestCase):
         self.assertIn("20", command)
         self.assertIn("--dry-run", command)
 
+    def test_materialized_source_filters_multiformat_and_preserves_primary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            primary = root / "epub" / "fiction"
+            multiformat = root / "multi-format" / "fiction"
+            unrelated = root / "multi-format" / "cooking"
+            primary.mkdir(parents=True)
+            multiformat.mkdir(parents=True)
+            unrelated.mkdir(parents=True)
+            (primary / "book.epub").write_text("primary", encoding="utf-8")
+            (primary / "cover.jpg").write_text("cover", encoding="utf-8")
+            (multiformat / "book.epub").write_text("secondary", encoding="utf-8")
+            (multiformat / "another.epub").write_text("included", encoding="utf-8")
+            (multiformat / "another.jpg").write_text("included cover", encoding="utf-8")
+            (multiformat / "metadata.opf").write_text("included metadata", encoding="utf-8")
+            (multiformat / "another.pdf").write_text("excluded", encoding="utf-8")
+            (multiformat / "another.mobi").write_text("excluded", encoding="utf-8")
+            (unrelated / "cookbook.epub").write_text("wrong subject", encoding="utf-8")
+            job = {
+                "name": "fiction",
+                "sources": [
+                    str(primary),
+                    {"path": str(multiformat), "extensions": [".epub", ".jpg", ".opf"]},
+                ],
+                "destination": "gdrive:books/fiction",
+            }
+            config = {"staging_root": str(root / "staging")}
+            with sync_books.materialized_source(config, job) as combined_source:
+                combined = Path(combined_source)
+                self.assertEqual((combined / "book.epub").read_text(encoding="utf-8"), "primary")
+                self.assertTrue((combined / "cover.jpg").exists())
+                self.assertTrue((combined / "another.epub").exists())
+                self.assertTrue((combined / "another.jpg").exists())
+                self.assertTrue((combined / "metadata.opf").exists())
+                self.assertFalse((combined / "another.pdf").exists())
+                self.assertFalse((combined / "another.mobi").exists())
+                self.assertFalse((combined / "cookbook.epub").exists())
+                self.assertEqual(
+                    (combined / "another.epub").stat().st_ino, (multiformat / "another.epub").stat().st_ino
+                )
+            self.assertFalse(combined.exists())
+
     def test_example_config_only_contains_fiction_and_nonfiction(self):
         config = json.loads((ROOT / "sync.example.json").read_text(encoding="utf-8"))
         self.assertEqual([job["name"] for job in config["jobs"]], ["fiction", "nonfiction"])
+        self.assertEqual(
+            config["jobs"][0]["sources"],
+            [
+                "/data/docker/qbittorrent/downloads/epub/fiction",
+                {
+                    "path": "/data/docker/qbittorrent/downloads/multi-format/fiction",
+                    "extensions": [
+                        ".epub",
+                        ".jpg",
+                        ".jpeg",
+                        ".png",
+                        ".webp",
+                        ".opf",
+                        ".ncx",
+                        ".txt",
+                        ".json",
+                        ".nfo",
+                        ".md5",
+                        ".sfv",
+                    ],
+                },
+            ],
+        )
 
     def test_select_jobs_returns_only_requested_mirror(self):
         config = {"jobs": [{"name": "fiction"}, {"name": "nonfiction"}]}

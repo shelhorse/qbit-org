@@ -56,7 +56,7 @@ journalctl -u qbit-organizer-scan.service --since today
 
 ## Optional event-driven EPUB mirrors
 
-The organizer can request a host-side rclone mirror after it successfully moves an EPUB into a configured subject directory. This keeps cloud access outside the container and never delays or fails torrent organization because of a remote outage.
+The organizer can request a host-side rclone mirror after it successfully moves an EPUB or multi-format torrent into a configured subject directory. The example mirror jobs combine the complete matching EPUB directory with EPUBs and safe cover, metadata, note, and checksum sidecars from the matching multi-format directory. Alternate ebook formats remain excluded. The temporary combined tree uses hard links and must remain on the same filesystem as the downloads. This keeps cloud access outside the container and never delays or fails torrent organization because of a remote outage.
 
 1. Copy `sync.example.json` to `/data/docker/qbittorrent/organizer/sync.json` and adjust the jobs if necessary.
 2. Run `sync_books.py --check-config`, followed by `sync_books.py --dry-run`. Review deletions carefully.

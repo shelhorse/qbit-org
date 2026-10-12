@@ -6,10 +6,10 @@ Examples:
 
 - EPUB + cover image, tagged `fiction` → `/downloads/epub/fiction`
 - MOBI only → `/downloads/mobi`
-- EPUB + MOBI → `/downloads/multi-format`
+- EPUB + MOBI, tagged `cooking` → `/downloads/multi-format/cooking`
 - MP3 audiobook → `/downloads/audio`
 
-The script explicitly sets the qBittorrent category as well as the location. It preserves unrelated existing tags, replaces only the managed subject tags, and adds `VERIFY` to every processed torrent. Automatic Torrent Management is turned off for the processed torrent so qBittorrent does not replace `/epub/<tag>` with the category's top-level path later.
+The script explicitly sets the qBittorrent category as well as the location. It preserves unrelated existing tags, replaces only the managed subject tags, and adds `VERIFY` to every processed torrent. Automatic Torrent Management is turned off for the processed torrent so qBittorrent does not replace subject-qualified EPUB or multi-format paths with the category's top-level path later.
 
 ## Requirements
 
@@ -155,12 +155,12 @@ The resulting flow is:
 /downloads/pdf
 /downloads/audio
 /downloads/graphicnovels
-/downloads/multi-format
+/downloads/multi-format/cooking
 ```
 
 The completion hook does not use `staging_path` to calculate destinations. It inspects the completed torrent wherever it currently resides and calculates the final location from `root`. `staging_path` is used only by recovery scans. If classification or relocation fails, the torrent remains conspicuously in `COMPLETE` for manual review. Re-running the hook for the same torrent is safe.
 
-Create the staging directories and ensure UID/GID 1000 can write to the download tree before enabling the hook. Pre-creating the format and EPUB tag directories is also a useful way to detect permission mistakes during setup.
+Create the staging directories and ensure UID/GID 1000 can write to the download tree before enabling the hook. Pre-creating the format directories and the subject directories under `epub` and `multi-format` is also a useful way to detect permission mistakes during setup.
 
 ## Validation and recovery
 
@@ -197,9 +197,9 @@ Every mutation acquires the operating-system lock configured by `lock_file`. Thi
 
 ## Event-driven Google Drive mirrors
 
-Cloud mirroring is deliberately separate from the completion hook so a slow or unavailable remote cannot block qBittorrent. After a successfully verified EPUB move, the organizer updates the trigger file for that subject. Independent systemd path instances run only the corresponding `sync_books.py` job on the Docker host.
+Cloud mirroring is deliberately separate from the completion hook so a slow or unavailable remote cannot block qBittorrent. After a successfully verified EPUB or multi-format move into a mirrored subject, the organizer updates the trigger file for that subject. Independent systemd path instances run only the corresponding `sync_books.py` job on the Docker host.
 
-The example configuration mirrors only `epub/fiction` and `epub/nonfiction`. No other EPUB directory is passed to rclone. Copy `sync.example.json` to `sync.json`, validate it, and inspect a dry run before enabling the path unit:
+The example configuration combines all files from `epub/fiction` with EPUBs and their safe companion files from `multi-format/fiction`, and does the same for nonfiction. Companion files include common cover images, EPUB metadata, text notes, and checksums; alternate book formats such as PDF, MOBI, and AZW3 remain excluded. Before calling rclone, `sync_books.py` builds a temporary combined tree using hard links, so no ebook data is duplicated. This lets each Drive destination be synchronized once against an exact source view; running separate syncs against one destination would make the jobs delete each other's files. If the same relative path exists in both sources, the ordinary EPUB source takes precedence. No other subject directory is included. Copy `sync.example.json` to `sync.json`, validate it, and inspect a dry run before enabling the path unit:
 
 ```sh
 python3 /data/docker/qbittorrent/organizer/sync_books.py \
@@ -208,7 +208,9 @@ python3 /data/docker/qbittorrent/organizer/sync_books.py \
   --config /data/docker/qbittorrent/organizer/sync.json --dry-run
 ```
 
-The mirror uses `rclone sync`, so remote files missing locally are deleted. `max_delete` limits the number of deletions in one run. Set `sync_trigger.enabled` to `true` in the organizer configuration only after reviewing the dry run and installing the service and path units.
+The temporary hard-link tree must be on the same filesystem as the source files. The example therefore places `staging_root` under the qBittorrent download tree. It is removed automatically after each mirror run.
+
+The mirror uses `rclone sync`, so remote files missing from the combined local source view are deleted. `max_delete` limits the number of deletions in one run. Set `sync_trigger.enabled` to `true` in the organizer configuration only after reviewing the dry run and installing the service and path units.
 
 ## Logging
 
@@ -218,7 +220,7 @@ In the documented Docker layout, the default log is persistent at `/config/qbit-
 
 ## Classification behavior
 
-Format classification uses qBittorrent's file list. Cover images are ignored when an ebook format is present, so an EPUB with a JPG cover stays in `epub`. Two real book formats result in `multi-format`. Comic archives use the `graphicnovels` category.
+Format classification uses qBittorrent's file list. Cover images are ignored when an ebook format is present, so an EPUB with a JPG cover stays in `epub`. Two real book formats result in `multi-format`. EPUB and multi-format torrents are placed in a subject subdirectory such as `epub/fiction` or `multi-format/cooking`. Comic archives use the `graphicnovels` category.
 
 Subject classification examines the torrent name, contained filenames, and—when `%F` is locally readable—the title, subject, description, and type stored inside EPUB files. Rules are evaluated in order, so special subjects should remain above `fiction` and `nonfiction`. Audio-format torrents use the `audiobooks` subject tag. The supplied special tags are `audiobooks`, `collections`, `compsci`, `craft`, `language`, `coffee`, `cooking`, `travel`, and `health`.
 

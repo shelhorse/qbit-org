@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented here. The project follows semantic versioning.
 
+## 0.4.0 — 2026-10-11
+
+- Place multi-format torrents in subject-specific directories, matching the existing EPUB layout.
+- Add EPUBs and their safe companion files from matching multi-format subject directories to the fiction and nonfiction Google Drive mirrors, while excluding alternate book formats.
+
 ## 0.3.1 — 2026-10-02
 
 - Give fiction and nonfiction independent trigger files and systemd instances so only the corresponding mirror runs.
