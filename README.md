@@ -4,7 +4,7 @@ qBittorrent is well suited to acquiring and seeding a media collection, but a gr
 
 The primary goal is to make a library easy to replicate selectively. A hierarchy based on format and subject lets a sync or backup tool target only the material wanted at a particular destination—for example, EPUB fiction and nonfiction in cloud storage—without also copying PDFs, alternate ebook formats, audiobooks, or unrelated subjects. The local qBittorrent library remains the source of truth, while each replica can contain a deliberate subset of it.
 
-Although the completion-hook pattern can help organize other media, this implementation is designed around books and common publishing formats. It includes an optional, separate Google Drive mirroring workflow as a practical example; the organized directory layout can also be used with other cloud, backup, or replication tools.
+Although the completion-hook pattern can help organize other media, this implementation is designed around books and common publishing formats. Containers are optional: the organizer can accompany either a native qBittorrent installation or a containerized one. The supplied deployment examples are Docker-first and run the organizer inside the qBittorrent container, while the optional Google Drive mirror runs on the Docker host. The organized directory layout can also be used with other cloud, backup, or replication tools.
 
 At completion, the hook classifies a torrent by the formats it contains, assigns one subject tag, and asks qBittorrent to move its storage.
 
@@ -19,18 +19,20 @@ The script explicitly sets the qBittorrent category as well as the location. It 
 
 ## Architecture
 
-The intended architecture keeps qBittorrent in control of the torrent data and treats the organized local library as the source of truth. qBittorrent downloads into a staging directory and invokes `organizer.py` as a completion hook. The organizer reads the torrent's file list through the Web UI API, classifies it, sets its category and tags, and asks qBittorrent to relocate it from staging into the appropriate format and subject directory. The organizer never moves the payload behind qBittorrent's back.
+Only qBittorrent and `organizer.py` are required. There is no continuously running organizer service and no separate organizer container. qBittorrent launches the script as a short-lived completion hook; the script uses the Web UI API to inspect and update the torrent, creates the destination directory, and asks qBittorrent to relocate the payload. qBittorrent therefore remains in control of the data and continues seeding it from the organized local library.
 
-```text
-INCOMPLETE → COMPLETE → organizer.py → qBittorrent Web UI API
-                                              ↓
-                              organized local library
-                                └─ format/subject
-                                       ↓ optional
-                             sync_books.py + rclone → cloud
-```
+The repository supports two deployment shapes. The Docker example uses one qBittorrent container; the host owns the persistent files and bind-mounts the paths the container needs.
 
-The organizer may run inside the qBittorrent container, as in the supplied Docker example, or on another system with API access and a compatible view of the download paths. Optional host-side services provide two independent safety and replication layers: a recovery timer reprocesses completed torrents left in staging after a missed hook, while subject-specific path watchers run `sync_books.py` and `rclone` for selected cloud mirrors. Cloud access is deliberately kept out of the completion path, so a slow or unavailable remote does not interfere with organization or seeding.
+| Component | Documented Docker deployment | Native deployment |
+| --- | --- | --- |
+| qBittorrent | Runs in the qBittorrent container. | Runs directly on the operating system. |
+| `organizer.py` and `config.json` | Stored on the host under `/data/docker/qbittorrent/organizer`, mounted read-only at `/organizer`, and executed **inside the qBittorrent container** by its completion command. The password remains a separate Docker secret mounted at `/run/secrets/qbt_password`. | Stored on the local system and executed directly by qBittorrent's completion command. |
+| Download library | Stored on the host under `/data/docker/qbittorrent/downloads` and mounted at `/downloads`. Both qBittorrent and the organizer use the container path `/downloads`. | Stored on a local path visible and writable to both qBittorrent and the organizer. |
+| Logs, lock, and mirror triggers | Written under the container's `/config` mount so they persist on the host. | Written to configured local paths. |
+| Recovery scan (optional) | The supplied unit files are installed under `/etc/systemd/system` on the host. The timer uses `docker exec` to run `/organizer/organizer.py --scan-staging` inside the qBittorrent container. | A local scheduler runs `organizer.py --scan-staging`. |
+| Cloud mirror (optional) | `sync_books.py` and `sync.json` are stored under `/data/docker/qbittorrent/organizer` but executed by host Python. Host-installed systemd path units under `/etc/systemd/system` start the job, which calls host-installed `/usr/bin/rclone` and reads `/data/docker/qbittorrent/downloads`. | `sync_books.py`, `rclone`, and any scheduler or path watcher run directly on the local system. |
+
+In either deployment, completed downloads move through `INCOMPLETE → COMPLETE → format/subject`. The recovery scan only catches items left in `COMPLETE` after a missed or failed hook. Cloud mirroring is a separate downstream operation and is never required for organization; keeping it outside the completion hook means a slow or unavailable remote cannot interfere with relocation or seeding.
 
 ## Requirements
 

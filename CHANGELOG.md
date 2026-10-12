@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented here. The project follows semantic versioning.
 
+## 0.4.1 — 2026-10-12
+
+- Clarify the project's purpose, supported deployment models, container boundaries, component locations, and optional recovery and cloud-mirroring services.
+
 ## 0.4.0 — 2026-10-11
 
 - Place multi-format torrents in subject-specific directories, matching the existing EPUB layout.
