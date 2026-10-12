@@ -17,6 +17,21 @@ Examples:
 
 The script explicitly sets the qBittorrent category as well as the location. It preserves unrelated existing tags, replaces only the managed subject tags, and adds `VERIFY` to every processed torrent. Automatic Torrent Management is turned off for the processed torrent so qBittorrent does not replace subject-qualified EPUB or multi-format paths with the category's top-level path later.
 
+## Architecture
+
+The intended architecture keeps qBittorrent in control of the torrent data and treats the organized local library as the source of truth. qBittorrent downloads into a staging directory and invokes `organizer.py` as a completion hook. The organizer reads the torrent's file list through the Web UI API, classifies it, sets its category and tags, and asks qBittorrent to relocate it from staging into the appropriate format and subject directory. The organizer never moves the payload behind qBittorrent's back.
+
+```text
+INCOMPLETE → COMPLETE → organizer.py → qBittorrent Web UI API
+                                              ↓
+                              organized local library
+                                └─ format/subject
+                                       ↓ optional
+                             sync_books.py + rclone → cloud
+```
+
+The organizer may run inside the qBittorrent container, as in the supplied Docker example, or on another system with API access and a compatible view of the download paths. Optional host-side services provide two independent safety and replication layers: a recovery timer reprocesses completed torrents left in staging after a missed hook, while subject-specific path watchers run `sync_books.py` and `rclone` for selected cloud mirrors. Cloud access is deliberately kept out of the completion path, so a slow or unavailable remote does not interfere with organization or seeding.
+
 ## Requirements
 
 - qBittorrent 4.1 or newer with Web UI enabled
